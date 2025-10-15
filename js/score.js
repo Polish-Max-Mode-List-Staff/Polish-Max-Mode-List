@@ -8,7 +8,7 @@ const scale = 3;
  * @param {Number} rank Position on the list
  * @returns {Number}
  */
-export function score(rank, percent, minPercent) {
+export function score(rank) {
     if (rank > 100) {
         return 0;
     }
