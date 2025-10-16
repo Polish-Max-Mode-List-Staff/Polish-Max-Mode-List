@@ -18,7 +18,6 @@ export async function fetchList() {
                         {
                             ...level,
                             path,
-                            ),
                         },
                         null,
                     ];
@@ -67,7 +66,7 @@ export async function fetchLeaderboard() {
         verified.push({
             rank: rank + 1,
             level: level.name,
-            score: score(rank + 1,),
+            score: score(rank + 1),
             link: level.verification,
         });
 
@@ -80,14 +79,14 @@ export async function fetchLeaderboard() {
                 verified: [],
                 completed: [],
             };
-            const { completed} = scoreMap[user];
-            completed.push({
-                rank: rank + 1,
-                level: level.name,
-                score: score(rank + 1),
-                link: record.link,
-                });
-                return;
+            const { completed } = scoreMap[user];
+                completed.push({
+                    rank: rank + 1,
+                    level: level.name,
+                    score: score(rank + 1),
+                    link: record.link,
+                })
+            return;
         });
     });
 
