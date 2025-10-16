@@ -1,48 +1,93 @@
-# Welcome to the Geometry Dash Shitty List template!
+export async function fetchList(type = 'main') {
+    const listResult = await fetch(`/data/${type}/_list.json`);
+    try {
+        const list = await listResult.json();
+        return await Promise.all(
+            list.map(async (path, rank) => {
+                const levelResult = await fetch(`/data/${type}/${path}.json`);
+                try {
+                    const level = await levelResult.json();
+                    return [{ ...level, path }, null];
+                } catch {
+                    console.error(`Failed to load level #${rank + 1} ${path}.`);
+                    return [null, path];
+                }
+            }),
+        );
+    } catch {
+        console.error(`Failed to load list.`);
+        return null;
+    }
+}
 
-# FAQ
+export async function fetchLeaderboard(type = 'main') {
+    const list = await fetchList(type);
+    const scoreMap = {};
+    const errs = [];
 
----
+    list.forEach(([level, err], rank) => {
+        if (err) {
+            errs.push(err);
+            return;
+        }
 
-### Website FAQ
+        const verifier = Object.keys(scoreMap).find(
+            (u) => u.toLowerCase() === level.verifier.toLowerCase(),
+        ) || level.verifier;
 
-Can I use the Shitty List template?
+        scoreMap[verifier] ??= {
+            verified: [],
+            completed: [],
+        };
 
-- Sure. Credits to the shitty list are embedded onto this template so keep that in.
+        scoreMap[verifier].verified.push({
+            rank: rank + 1,
+            level: level.name,
+            score: score(rank + 1),
+            link: level.verification,
+        });
 
-The website isn't loading! What can I do?
+        level.records.forEach((record) => {
+            const user = Object.keys(scoreMap).find(
+                (u) => u.toLowerCase() === record.user.toLowerCase(),
+            ) || record.user;
 
-- Since no webhost is perfect, downtime is expected. You can either wait till the
-  website is back online or you can do some behind the scene stuff and run it
-  locally.
+            scoreMap[user] ??= {
+                verified: [],
+                completed: [],
+            };
 
----
+            scoreMap[user].completed.push({
+                rank: rank + 1,
+                level: level.name,
+                score: score(rank + 1),
+                link: record.link,
+            });
+        });
+    });
 
-### Usage FAQ
+    const res = Object.entries(scoreMap).map(([user, scores]) => {
+        const { verified, completed } = scores;
+        const total = [verified, completed].flat().reduce((prev, cur) => prev + cur.score, 0);
+        return {
+            user,
+            total: round(total),
+            ...scores,
+        };
+    });
 
-How do I add levels to the list?
+    return [res.sort((a, b) => b.total - a.total), errs];
+}
 
-- Use one of the provided template json files and modify the details to fill in the details
-  accordingly. If there are any errors, the site will not load, or you will get a pop up
-  saying which level isn't loading.
+import MainList from './pages/MainList.js';
+import MainLeaderboard from './pages/MainLeaderboard.js';
+import SideList from './pages/SideList.js';
+import SideLeaderboard from './pages/SideLeaderboard.js';
 
-How do I add records to the list?
+export default [
+  { path: '/', component: MainList },
+  { path: '/leaderboard', component: MainLeaderboard },
+  { path: '/side', component: SideList },
+  { path: '/side/leaderboard', component: SideLeaderboard },
+];
 
-- Again, use one of the given templates, and modify the details accordingly. For mobile
-  records, you can add the code `mobile: true` within the braces. Make sure there are no
-  excess or missing commas, or the website might not load properly.
-
-What are some common reasons for the website not loading?
-
-- The most common cause is missing commas and inverted commas, or extra commas at the end of
-  the last lines within list entries. A good way to find the error-causing lines can be found
-  by using `Inspect Element` and going to the `Console` tab.
-
----
-
-## More Coming Soon!
-
-## Repo Maintainers:
-
-- Prometheus
-- Emonadeo
