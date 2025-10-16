@@ -13,7 +13,7 @@ export function score(rank) {
         return 0;
     }
     
-    result = Math.max(5,Math.min(1000,round(5+995*((101-rank)/100)**2)))
+    let result = Math.max(5,Math.min(1000,round(5+995*((101-rank)/100)**2)))
     return result
 } 
 
