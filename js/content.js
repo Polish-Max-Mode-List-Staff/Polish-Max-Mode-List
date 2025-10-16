@@ -80,23 +80,21 @@ export async function fetchLeaderboard() {
                 verified: [],
                 completed: [],
             };
-            const { completed, progressed } = scoreMap[user];
-            if (record.percent === 100) {
-                completed.push({
-                    rank: rank + 1,
-                    level: level.name,
-                    score: score(rank + 1),
-                    link: record.link,
+            const { completed} = scoreMap[user];
+            completed.push({
+                rank: rank + 1,
+                level: level.name,
+                score: score(rank + 1),
+                link: record.link,
                 });
                 return;
-            }
         });
     });
 
     // Wrap in extra Object containing the user and total score
     const res = Object.entries(scoreMap).map(([user, scores]) => {
-        const { verified, completed, progressed } = scores;
-        const total = [verified, completed, progressed]
+        const { verified, completed } = scores;
+        const total = [verified, completed]
             .flat()
             .reduce((prev, cur) => prev + cur.score, 0);
 
