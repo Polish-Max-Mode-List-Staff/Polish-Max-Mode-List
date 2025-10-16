@@ -18,8 +18,6 @@ export async function fetchList() {
                         {
                             ...level,
                             path,
-                            records: level.records.sort(
-                                (a, b) => b.percent - a.percent,
                             ),
                         },
                         null,
@@ -64,13 +62,12 @@ export async function fetchLeaderboard() {
         scoreMap[verifier] ??= {
             verified: [],
             completed: [],
-            progressed: [],
         };
         const { verified } = scoreMap[verifier];
         verified.push({
             rank: rank + 1,
             level: level.name,
-            score: score(rank + 1, 100, level.percentToQualify),
+            score: score(rank + 1,),
             link: level.verification,
         });
 
@@ -82,26 +79,17 @@ export async function fetchLeaderboard() {
             scoreMap[user] ??= {
                 verified: [],
                 completed: [],
-                progressed: [],
             };
             const { completed, progressed } = scoreMap[user];
             if (record.percent === 100) {
                 completed.push({
                     rank: rank + 1,
                     level: level.name,
-                    score: score(rank + 1, 100, level.percentToQualify),
+                    score: score(rank + 1),
                     link: record.link,
                 });
                 return;
             }
-
-            progressed.push({
-                rank: rank + 1,
-                level: level.name,
-                percent: record.percent,
-                score: score(rank + 1, record.percent, level.percentToQualify),
-                link: record.link,
-            });
         });
     });
 
