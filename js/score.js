@@ -13,9 +13,9 @@ export function score(rank) {
         return 0;
     }
     
-    score = Math.max(5,Math.min(1000,round(5+995*((101-rank)/100)**2)))
-    return score
-}
+    result = Math.max(5,Math.min(1000,round(5+995*((101-rank)/100)**2)))
+    return result
+} 
 
 export function round(num) {
     if (!('' + num).includes('e')) {

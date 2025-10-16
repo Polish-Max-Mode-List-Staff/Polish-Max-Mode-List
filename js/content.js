@@ -84,7 +84,7 @@ export async function fetchLeaderboard() {
                 completed: [],
 
             };
-            const { completed, progressed } = scoreMap[user];
+            const { completed } = scoreMap[user];
             completed.push({
                 rank: rank + 1,
                 level: level.name,
