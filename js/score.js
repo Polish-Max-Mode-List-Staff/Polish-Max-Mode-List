@@ -14,7 +14,7 @@ export function score(rank) {
     }
     
     const result = Math.max(5,Math.min(1000,round(5+995*((101-rank)/100)**2)))
-    return result
+    return result+1000
 } 
 
 export function round(num) {
