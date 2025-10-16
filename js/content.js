@@ -18,6 +18,9 @@ export async function fetchList() {
                         {
                             ...level,
                             path,
+                            records: level.records.sort(
+                                (a, b) => b.percent - a.percent,
+                            ),
                         },
                         null,
                     ];
@@ -61,12 +64,13 @@ export async function fetchLeaderboard() {
         scoreMap[verifier] ??= {
             verified: [],
             completed: [],
+            progressed: [],
         };
         const { verified } = scoreMap[verifier];
         verified.push({
             rank: rank + 1,
             level: level.name,
-            score: score(rank + 1),
+            score: score(rank + 1, 100, level.percentToQualify),
             link: level.verification,
         });
 
@@ -78,22 +82,33 @@ export async function fetchLeaderboard() {
             scoreMap[user] ??= {
                 verified: [],
                 completed: [],
+                progressed: [],
             };
-            const { completed } = scoreMap[user];
+            const { completed, progressed } = scoreMap[user];
+            if (record.percent === 100) {
                 completed.push({
                     rank: rank + 1,
                     level: level.name,
-                    score: score(rank + 1),
+                    score: score(rank + 1, 100, level.percentToQualify),
                     link: record.link,
-                })
-            return;
+                });
+                return;
+            }
+
+            progressed.push({
+                rank: rank + 1,
+                level: level.name,
+                percent: record.percent,
+                score: score(rank + 1, record.percent, level.percentToQualify),
+                link: record.link,
+            });
         });
     });
 
     // Wrap in extra Object containing the user and total score
     const res = Object.entries(scoreMap).map(([user, scores]) => {
-        const { verified, completed } = scores;
-        const total = [verified, completed]
+        const { verified, completed, progressed } = scores;
+        const total = [verified, completed, progressed]
             .flat()
             .reduce((prev, cur) => prev + cur.score, 0);
 
