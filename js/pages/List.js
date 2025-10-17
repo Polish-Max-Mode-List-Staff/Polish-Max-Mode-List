@@ -39,7 +39,7 @@ export default {
             <div class="level-container">
                 <div class="level" v-if="level">
                     <h1>{{ level.name }}</h1>
-                    <LevelAuthors :author="level.developers" :game="<a :href='record.gameLink' target='_blank' class='type-label-lg'>record.game</a>" :verifier="level.verifier" :dateVerified="level.dateVerified"></LevelAuthors>
+                    <LevelAuthors :author="level.developers" :game="record.game" :verifier="level.verifier" :dateVerified="level.dateVerified"></LevelAuthors>
                     <iframe class="video" id="videoframe" :src="video" frameborder="0"></iframe>
                     <ul class="stats">
                         <li>
