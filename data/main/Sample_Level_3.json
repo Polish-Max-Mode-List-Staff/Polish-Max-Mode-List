@@ -3,7 +3,7 @@
     "game": "One Night at Frogger's",
     "gameLink": "",
     "developers": ["Solo_Creator"],
-    "dateVerified": "2024-01-01",
+    "dateVerified": "2024/01/01",
     "length": "N/A",
     "verifier": "Solo_Creator",
     "verification": "https://www.youtube.com/watch?v=ISTl28wKSXc",
@@ -11,12 +11,14 @@
         {
             "user": "Sample_Victor_1",
             "link": "https://www.youtube.com/watch?v=MgJeijBGKHU",
-            "time": "12m 4s"
+            "time": "12m 4s 125ms",
+            "dateCompleted": "2025/01/12"
         },
         {
             "user": "Sample_Victor_2",
             "link": "https://www.youtube.com/watch?v=MgJeijBGKHU",
-            "time": "1m 2s"
+            "time": "1m 2s 500ms",
+            "dateCompleted": "2025/12/12"
         }
     ]
 }

@@ -59,11 +59,14 @@ export default {
                     <p v-if="selected + 1 <= 150">This level does not accept new records.</p>
                     <table class="records">
                         <tr v-for="record in level.records" class="record">
-                            <td class="time">
-                                <p>{{ record.time }}%</p>
+                            <td class="date">
+                                <p>({{ record.dateCompleted }})</p>
                             </td>
                             <td class="user">
                                 <a :href="record.link" target="_blank" class="type-label-lg">{{ record.user }}</a>
+                            </td>
+                            <td class="time">
+                                <p>{{ record.time }}</p>
                             </td>
                         </tr>
                     </table>
