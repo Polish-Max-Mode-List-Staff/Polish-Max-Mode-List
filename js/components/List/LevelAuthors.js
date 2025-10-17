@@ -1,11 +1,11 @@
 export default {
     props: {
         developers: {
-            type: String,
+            type: Array,
             required: true,
         },
         game: {
-            type: Array,
+            type: String,
             required: true,
         },
         verifier: {
@@ -33,7 +33,7 @@ export default {
                         ><span v-if="index < developers.length - 1">, </span>
                     </template>
                 </p>
-                <div class="type-title-sm">Gane</div>
+                <div class="type-title-sm">Game</div>
                 <p class="type-body">
                     <span>{{ game }}</span>
                 </p>
