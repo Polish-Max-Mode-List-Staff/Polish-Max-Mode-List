@@ -28,13 +28,13 @@ export async function fetchList(listType = 'main') {
                         null,
                     ];
                 } catch {
-                    console.error(`❌ Failed to load ${listType} level #${rank + 1}: ${path}.json`);
+                    console.error(`Failed to load ${listType} level #${rank + 1}: ${path}.json`);
                     return [null, path];
                 }
             })
         );
     } catch {
-        console.error(`❌ Failed to load ${listType} list.`);
+        console.error(`Failed to load ${listType} list.`);
         return null;
     }
 }
@@ -62,20 +62,20 @@ export async function fetchUnverifiedList() {
                         developers: level.developers || [],
                         versionToVerify: level.versionToVerify || 'Unknown',
                         dateMade: level.dateMade || 'Unknown',
-                        verifier: level.verifier || null,
+                        verifier: level.verifier || "None",
                         verification: level.verification || null,
                         projectedPlacementMain: level.projectedPlacementMain || null,
                         projectedPlacementBonus: level.projectedPlacementBonus || null,
                         description: level.description || '',
                     };
                 } catch {
-                    console.error(`❌ Failed to load unverified level: ${path}.json`);
+                    console.error(`Failed to load unverified level: ${path}.json`);
                     return null;
                 }
             })
         );
     } catch {
-        console.error('❌ Failed to load unverified list.');
+        console.error('Failed to load unverified list.');
         return null;
     }
 }
