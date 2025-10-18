@@ -1,7 +1,7 @@
 import fs from "fs";
 import fetch from "node-fetch";
 
-const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+const WEBHOOK_URL = process.env.WEBHOOK;
 const BASE_URL = "https://pmml.pages.dev/data";
 const listTypes = ["main", "bonus"];
 
