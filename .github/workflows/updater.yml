@@ -1,0 +1,28 @@
+name: Demon List Discord Updates
+
+on:
+  push:
+    paths:
+      - 'data/main/_list.json'
+      - 'data/bonus/_list.json'
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install node-fetch@3
+
+      - name: Run Demon List Watcher
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node demonlist-watcher.js
