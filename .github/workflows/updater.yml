@@ -25,4 +25,4 @@ jobs:
       - name: Run Demon List Watcher
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: node demonlist-watcher.js
+        run: node js/watcher.js
