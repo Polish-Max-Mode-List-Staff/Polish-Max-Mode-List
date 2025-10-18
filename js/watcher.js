@@ -1,5 +1,5 @@
 // js/demonlist-watcher.js
-// Node 20+ (uses global fetch). ESM style (top-level await not used).
+// Node 20+ (uses global fetch). ESM style (top-level await not used)
 import fs from "fs";
 import path from "path";
 
