@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 
-const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+const WEBHOOK_URL = process.env.WEBHOOK;
 if (!WEBHOOK_URL) {
   console.error("Missing DISCORD_WEBHOOK_URL environment variable.");
   process.exit(1);
