@@ -1,3 +1,11 @@
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
 import fs from "fs";
 
 const WEBHOOK_URL = process.env.WEBHOOK;
@@ -130,12 +138,14 @@ async function checkList(listType) {
 }
 
 async function main() {
+  console.log("Starting watcher...");
   for (const lt of LIST_TYPES) {
     try {
       await checkList(lt);
     } catch (err) {
       console.error(`Error checking ${lt}:`, err);
     }
+    console.log("Checking list:", lt);
   }
 }
 
