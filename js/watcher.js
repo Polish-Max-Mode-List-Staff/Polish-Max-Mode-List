@@ -16,22 +16,15 @@ async function readCache(listType) {
     const data = await fs.readFile(cachePath, "utf-8");
     return JSON.parse(data);
   } catch {
-    console.warn(`No existing cache for ${listType}`);
     return null;
   }
 }
 
 async function saveCache(listType, data) {
-  try {
-    const cacheDir = path.resolve("data", listType);
-    await fs.mkdir(cacheDir, { recursive: true });
-    const cachePath = path.join(cacheDir, "cache_list.json");
-    await fs.writeFile(cachePath, JSON.stringify(data, null, 2));
-    console.log(`Cache saved: ${cachePath}`);
-  } catch (err) {
-    console.error(`Failed to save cache for ${listType}:`, err);
-    throw err;
-  }
+  const cacheDir = path.resolve("data", listType);
+  await fs.mkdir(cacheDir, { recursive: true });
+  const cachePath = path.join(cacheDir, "cache_list.json");
+  await fs.writeFile(cachePath, JSON.stringify(data, null, 2));
 }
 
 async function fetchList(listType) {
@@ -57,16 +50,11 @@ async function fetchList(listType) {
 }
 
 async function sendDiscordMessage(content) {
-  try {
-    await fetch(WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content })
-    });
-    console.log("Sent Discord message:", content);
-  } catch (err) {
-    console.error("Failed to send Discord message:", err);
-  }
+  await fetch(WEBHOOK, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content })
+  });
 }
 
 function diffLists(oldList, newList) {
@@ -74,25 +62,41 @@ function diffLists(oldList, newList) {
   const oldMap = new Map(oldList.map((x) => [x.id, x]));
   const newMap = new Map(newList.map((x) => [x.id, x]));
 
+  const removed = oldList.filter(x => !newMap.has(x.id));
+  const added = newList.filter(x => !oldMap.has(x.id));
+
+  for (const n of added) {
+    const higher = newList.find(x => x.rank === n.rank - 1)?.name || "None";
+    const lower = newList.find(x => x.rank === n.rank + 1)?.name || "None";
+    changes.push(`${n.name} added at #${n.rank}. Above: ${higher}. Below: ${lower}.`);
+  }
+
+  for (const o of removed) {
+    changes.push(`${o.name} was removed from the list (previously #${o.rank}).`);
+  }
+
+  // detect real moves (where only that entry’s position changed)
+  const moved = [];
   for (const id of newMap.keys()) {
-    if (!oldMap.has(id)) {
-      const n = newMap.get(id);
-      changes.push(`${n.name} added to the ${n.rank <= 100 ? "list" : "legacy"}. It is now #${n.rank}.`);
-    } else {
+    if (oldMap.has(id)) {
       const o = oldMap.get(id);
       const n = newMap.get(id);
       if (o.rank !== n.rank) {
-        const dir = n.rank < o.rank ? "moved up" : "moved down";
-        changes.push(`${n.name} ${dir} from #${o.rank} to #${n.rank}.`);
+        moved.push({ oldRank: o.rank, newRank: n.rank, name: n.name });
       }
     }
   }
 
-  for (const id of oldMap.keys()) {
-    if (!newMap.has(id)) {
-      const o = oldMap.get(id);
-      changes.push(`${o.name} was removed from the list (previously #${o.rank}).`);
-    }
+  // keep only entries that moved more than one place or whose move isn't caused by an addition/removal
+  for (const m of moved) {
+    const oIdx = oldList.findIndex(x => x.rank === m.oldRank);
+    const nIdx = newList.findIndex(x => x.rank === m.newRank);
+    const higher = newList[nIdx - 1]?.name || "None";
+    const lower = newList[nIdx + 1]?.name || "None";
+    const dir = m.newRank < m.oldRank ? "moved up" : "moved down";
+    // if the same number of items exist and no adds/removes nearby, count as a real move
+    if (added.length === 0 && removed.length === 0)
+      changes.push(`${m.name} ${dir} from #${m.oldRank} to #${m.newRank}. Above: ${higher}. Below: ${lower}.`);
   }
 
   return changes;
@@ -106,7 +110,6 @@ async function persistCacheChanges() {
     exec("git add data/*/cache_list.json");
     exec("git commit -m 'Update cache files [bot]' || echo 'No cache changes to commit'");
     exec("git push");
-    console.log("Cache committed to repository");
   } catch (err) {
     console.error("Failed to commit cache:", err);
   }
@@ -116,24 +119,13 @@ process.on("unhandledRejection", (r) => console.error("Unhandled rejection:", r)
 process.on("uncaughtException", (e) => console.error("Uncaught exception:", e));
 
 async function main() {
-  console.log("Starting Demon List watcher...");
   for (const listType of LIST_TYPES) {
-    console.log("Checking list:", listType);
     const oldList = (await readCache(listType)) || [];
     const newList = await fetchList(listType);
     const changes = oldList.length ? diffLists(oldList, newList) : [];
-
-    if (changes.length > 0) {
-      for (const c of changes) {
-        await sendDiscordMessage(`[${listType.toUpperCase()}] ${c}`);
-      }
-    } else {
-      console.log(`No changes detected in ${listType} list`);
-    }
-
+    for (const c of changes) await sendDiscordMessage(`[${listType.toUpperCase()}] ${c}`);
     await saveCache(listType, newList);
   }
-
   await persistCacheChanges();
 }
 
