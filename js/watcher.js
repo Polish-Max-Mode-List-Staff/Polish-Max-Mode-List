@@ -1,6 +1,5 @@
 import fs from "fs/promises";
 import path from "path";
-import fetch from "node-fetch";
 
 const WEBHOOK = process.env.WEBHOOK;
 if (!WEBHOOK) {
@@ -50,7 +49,7 @@ async function fetchList(listType) {
     list.push({
       rank: i + 1,
       id: p,
-      game: json.game || "Unknown",
+      name: json.name || "Unknown",
       dateVerified: json.dateVerified || null
     });
   }
@@ -78,13 +77,13 @@ function diffLists(oldList, newList) {
   for (const id of newMap.keys()) {
     if (!oldMap.has(id)) {
       const n = newMap.get(id);
-      changes.push(`${n.game} added to the ${n.rank <= 100 ? "list" : "legacy"}. It is now #${n.rank}.`);
+      changes.push(`${n.name} added to the ${n.rank <= 100 ? "list" : "legacy"}. It is now #${n.rank}.`);
     } else {
       const o = oldMap.get(id);
       const n = newMap.get(id);
       if (o.rank !== n.rank) {
         const dir = n.rank < o.rank ? "moved up" : "moved down";
-        changes.push(`${n.game} ${dir} from #${o.rank} to #${n.rank}.`);
+        changes.push(`${n.name} ${dir} from #${o.rank} to #${n.rank}.`);
       }
     }
   }
@@ -92,12 +91,29 @@ function diffLists(oldList, newList) {
   for (const id of oldMap.keys()) {
     if (!newMap.has(id)) {
       const o = oldMap.get(id);
-      changes.push(`${o.game} was removed from the list (previously #${o.rank}).`);
+      changes.push(`${o.name} was removed from the list (previously #${o.rank}).`);
     }
   }
 
   return changes;
 }
+
+async function persistCacheChanges() {
+  try {
+    const exec = (await import("child_process")).execSync;
+    exec("git config user.name 'github-actions'");
+    exec("git config user.email 'actions@github.com'");
+    exec("git add data/*/cache_list.json");
+    exec("git commit -m 'Update cache files [bot]' || echo 'No cache changes to commit'");
+    exec("git push");
+    console.log("Cache committed to repository");
+  } catch (err) {
+    console.error("Failed to commit cache:", err);
+  }
+}
+
+process.on("unhandledRejection", (r) => console.error("Unhandled rejection:", r));
+process.on("uncaughtException", (e) => console.error("Uncaught exception:", e));
 
 async function main() {
   console.log("Starting Demon List watcher...");
@@ -118,25 +134,7 @@ async function main() {
     await saveCache(listType, newList);
   }
 
-  // persist cache to repo for next run
   await persistCacheChanges();
 }
-
-async function persistCacheChanges() {
-  try {
-    const exec = (await import("child_process")).execSync;
-    exec("git config user.name 'github-actions'");
-    exec("git config user.email 'actions@github.com'");
-    exec("git add data/*/cache_list.json");
-    exec("git commit -m 'Update cache files [bot]' || echo 'No cache changes to commit'");
-    exec("git push");
-    console.log("Cache committed to repository");
-  } catch (err) {
-    console.error("Failed to commit cache:", err);
-  }
-}
-
-process.on("unhandledRejection", (r) => console.error("Unhandled rejection:", r));
-process.on("uncaughtException", (e) => console.error("Uncaught exception:", e));
 
 main();
