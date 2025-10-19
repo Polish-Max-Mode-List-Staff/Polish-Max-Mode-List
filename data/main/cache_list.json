@@ -1,9 +1,9 @@
 [
   {
     "rank": 1,
-    "id": "SAMPLELEVEL2",
-    "name": "Hard Boiled Mode All Challenges",
-    "dateVerified": null
+    "id": "Sample_Level_3",
+    "name": "Sample Level 3",
+    "dateVerified": "2024/01/01"
   },
   {
     "rank": 2,
@@ -19,8 +19,8 @@
   },
   {
     "rank": 4,
-    "id": "Sample_Level_3",
-    "name": "Sample Level 3",
-    "dateVerified": "2024/01/01"
+    "id": "SAMPLELEVEL2",
+    "name": "Hard Boiled Mode All Challenges",
+    "dateVerified": null
   }
 ]
