@@ -1,15 +1,15 @@
 [
   {
     "rank": 1,
-    "id": "Sample_Level_3",
-    "name": "Sample Level 3",
-    "dateVerified": "2024/01/01"
-  },
-  {
-    "rank": 2,
     "id": "nad",
     "name": "Nightmare at Disney (FNaTIbD)",
     "dateVerified": "2025/10/19"
+  },
+  {
+    "rank": 2,
+    "id": "Sample_Level_3",
+    "name": "Sample Level 3",
+    "dateVerified": "2024/01/01"
   },
   {
     "rank": 3,
