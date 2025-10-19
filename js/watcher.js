@@ -1,154 +1,142 @@
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled rejection:", reason);
-});
+import fs from "fs/promises";
+import path from "path";
+import fetch from "node-fetch";
 
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught exception:", err);
-});
-
-import fs from "fs";
-
-const WEBHOOK_URL = process.env.WEBHOOK;
-if (!WEBHOOK_URL) {
-  console.error("Missing WEBHOOK environment variable.");
+const WEBHOOK = process.env.WEBHOOK;
+if (!WEBHOOK) {
+  console.error("Missing WEBHOOK environment variable");
   process.exit(1);
 }
 
-const BASE_URL = "https://pmml.pages.dev/data";
 const LIST_TYPES = ["main", "bonus"];
-const CACHE_PREFIX = ".cache_";
+const BASE_URL = "https://pmml.pages.dev/data";
 
-async function fetchJson(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`HTTP ${r.status} when fetching ${url}`);
-  return await r.json();
-}
-
-async function fetchListPaths(listType) {
-  return await fetchJson(`${BASE_URL}/${listType}/_list.json`);
-}
-
-async function fetchLevelMeta(listType, levelPath) {
-  const url = `${BASE_URL}/${listType}/${levelPath}.json`;
+async function readCache(listType) {
   try {
-    const level = await fetchJson(url);
-    const game = level.game || levelPath;
-    return { path: levelPath, game };
+    const cachePath = path.resolve("data", listType, "cache_list.json");
+    const data = await fs.readFile(cachePath, "utf-8");
+    return JSON.parse(data);
   } catch {
-    return { path: levelPath, game: levelPath };
-  }
-}
-
-function readCache(listType) {
-  const file = `./${CACHE_PREFIX}${listType}.json`;
-  if (!fs.existsSync(file)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-    console.log("Reading cache:", listType);
-  } catch {
+    console.warn(`No existing cache for ${listType}`);
     return null;
   }
 }
 
-function writeCache(listType, arr) {
-  fs.writeFileSync(`./${CACHE_PREFIX}${listType}.json`, JSON.stringify(arr, null, 2));
-  console.log("Creating cache:", listType);
+async function saveCache(listType, data) {
+  try {
+    const cacheDir = path.resolve("data", listType);
+    await fs.mkdir(cacheDir, { recursive: true });
+    const cachePath = path.join(cacheDir, "cache_list.json");
+    await fs.writeFile(cachePath, JSON.stringify(data, null, 2));
+    console.log(`Cache saved: ${cachePath}`);
+  } catch (err) {
+    console.error(`Failed to save cache for ${listType}:`, err);
+    throw err;
+  }
 }
 
-function computeChanges(oldList, newList) {
-  const oldPaths = oldList.map(l => l.path);
-  const newPaths = newList.map(l => l.path);
-  const added = newPaths.filter(p => !oldPaths.includes(p));
-  const removed = oldPaths.filter(p => !newPaths.includes(p));
-  const oldFiltered = oldPaths.filter(p => newPaths.includes(p));
-  const newFiltered = newPaths.filter(p => oldPaths.includes(p));
-  const dp = Array(oldFiltered.length + 1).fill(null).map(() => Array(newFiltered.length + 1).fill(0));
-  for (let i = oldFiltered.length - 1; i >= 0; i--) {
-    for (let j = newFiltered.length - 1; j >= 0; j--) {
-      if (oldFiltered[i] === newFiltered[j]) dp[i][j] = 1 + dp[i + 1][j + 1];
-      else dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+async function fetchList(listType) {
+  const url = `${BASE_URL}/${listType}/_list.json`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+  const paths = await res.json();
+  const list = [];
+  for (let i = 0; i < paths.length; i++) {
+    const p = paths[i];
+    const entryUrl = `${BASE_URL}/${listType}/${p}.json`;
+    const entryRes = await fetch(entryUrl);
+    if (!entryRes.ok) continue;
+    const json = await entryRes.json();
+    list.push({
+      rank: i + 1,
+      id: p,
+      game: json.game || "Unknown",
+      dateVerified: json.dateVerified || null
+    });
+  }
+  return list;
+}
+
+async function sendDiscordMessage(content) {
+  try {
+    await fetch(WEBHOOK, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content })
+    });
+    console.log("Sent Discord message:", content);
+  } catch (err) {
+    console.error("Failed to send Discord message:", err);
+  }
+}
+
+function diffLists(oldList, newList) {
+  const changes = [];
+  const oldMap = new Map(oldList.map((x) => [x.id, x]));
+  const newMap = new Map(newList.map((x) => [x.id, x]));
+
+  for (const id of newMap.keys()) {
+    if (!oldMap.has(id)) {
+      const n = newMap.get(id);
+      changes.push(`${n.game} added to the ${n.rank <= 100 ? "list" : "legacy"}. It is now #${n.rank}.`);
+    } else {
+      const o = oldMap.get(id);
+      const n = newMap.get(id);
+      if (o.rank !== n.rank) {
+        const dir = n.rank < o.rank ? "moved up" : "moved down";
+        changes.push(`${n.game} ${dir} from #${o.rank} to #${n.rank}.`);
+      }
     }
   }
-  const lcs = [];
-  let i = 0, j = 0;
-  while (i < oldFiltered.length && j < newFiltered.length) {
-    if (oldFiltered[i] === newFiltered[j]) {
-      lcs.push(oldFiltered[i]);
-      i++; j++;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
-    else j++;
-  }
-  const moved = newFiltered.filter(p => !lcs.includes(p));
-  return { added, removed, moved };
-}
 
-async function sendDiscordMessage(embed) {
-  const payload = { embeds: [embed] };
-  const r = await fetch(WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) console.error(`Failed to send webhook: ${r.status} ${await r.text()}`);
-}
+  for (const id of oldMap.keys()) {
+    if (!newMap.has(id)) {
+      const o = oldMap.get(id);
+      changes.push(`${o.game} was removed from the list (previously #${o.rank}).`);
+    }
+  }
 
-function composeMessages(listType, added, removed, moved) {
-  const lines = [];
-  added.forEach(a => lines.push(`${a.game} added to the ${listType} list at #${a.rank}.`));
-  removed.forEach(r => lines.push(`${r.game} removed from the ${listType} list (was #${r.rank}).`));
-  moved.forEach(m => {
-    const dir = m.newRank < m.oldRank ? "moved up" : "moved down";
-    lines.push(`${m.game} ${dir} on ${listType}: #${m.oldRank} → #${m.newRank}.`);
-  });
-  return lines;
-}
-
-async function checkList(listType) {
-  const currentPaths = await fetchListPaths(listType);
-  const oldCache = readCache(listType);
-  if (!oldCache) {
-    writeCache(listType, await Promise.all(currentPaths.map(async p => await fetchLevelMeta(listType, p))));
-    return;
-  }
-  const oldMap = Object.fromEntries(oldCache.map((x, i) => [x.path, i]));
-  const currentMeta = [];
-  for (const path of currentPaths) {
-    if (oldMap[path] !== undefined) currentMeta.push({ path, game: oldCache[oldMap[path]].game });
-    else currentMeta.push(await fetchLevelMeta(listType, path));
-  }
-  const { added, removed, moved } = computeChanges(oldCache, currentMeta);
-  if (added.length === 0 && removed.length === 0 && moved.length === 0) {
-    writeCache(listType, currentMeta);
-    return;
-  }
-  const addedMeta = currentMeta.filter(x => added.includes(x.path)).map((x, i) => ({ ...x, rank: i + 1 }));
-  const removedMeta = oldCache.filter(x => removed.includes(x.path)).map((x, i) => ({ ...x, rank: i + 1 }));
-  const movedMeta = currentMeta.filter(x => moved.includes(x.path)).map(x => {
-    const oldRank = oldCache.findIndex(o => o.path === x.path) + 1;
-    const newRank = currentMeta.findIndex(n => n.path === x.path) + 1;
-    return { ...x, oldRank, newRank };
-  });
-  const lines = composeMessages(listType, addedMeta, removedMeta, movedMeta);
-  const embed = {
-    title: `Demon List changes — ${listType}`,
-    description: lines.join("\n"),
-    color: 0x2b2d31,
-    timestamp: new Date().toISOString(),
-  };
-  await sendDiscordMessage(embed);
-  writeCache(listType, currentMeta);
+  return changes;
 }
 
 async function main() {
-  console.log("Starting watcher...");
-  for (const lt of LIST_TYPES) {
-    try {
-      await checkList(lt);
-    } catch (err) {
-      console.error(`Error checking ${lt}:`, err);
+  console.log("Starting Demon List watcher...");
+  for (const listType of LIST_TYPES) {
+    console.log("Checking list:", listType);
+    const oldList = (await readCache(listType)) || [];
+    const newList = await fetchList(listType);
+    const changes = oldList.length ? diffLists(oldList, newList) : [];
+
+    if (changes.length > 0) {
+      for (const c of changes) {
+        await sendDiscordMessage(`[${listType.toUpperCase()}] ${c}`);
+      }
+    } else {
+      console.log(`No changes detected in ${listType} list`);
     }
-    console.log("Checking list:", lt);
+
+    await saveCache(listType, newList);
+  }
+
+  // persist cache to repo for next run
+  await persistCacheChanges();
+}
+
+async function persistCacheChanges() {
+  try {
+    const exec = (await import("child_process")).execSync;
+    exec("git config user.name 'github-actions'");
+    exec("git config user.email 'actions@github.com'");
+    exec("git add data/*/cache_list.json");
+    exec("git commit -m 'Update cache files [bot]' || echo 'No cache changes to commit'");
+    exec("git push");
+    console.log("Cache committed to repository");
+  } catch (err) {
+    console.error("Failed to commit cache:", err);
   }
 }
+
+process.on("unhandledRejection", (r) => console.error("Unhandled rejection:", r));
+process.on("uncaughtException", (e) => console.error("Uncaught exception:", e));
 
 main();
