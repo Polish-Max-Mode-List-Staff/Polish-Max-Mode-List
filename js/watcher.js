@@ -44,6 +44,7 @@ function readCache(listType) {
   if (!fs.existsSync(file)) return null;
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
+    console.log("Reading cache:", listType);
   } catch {
     return null;
   }
@@ -51,6 +52,7 @@ function readCache(listType) {
 
 function writeCache(listType, arr) {
   fs.writeFileSync(`./${CACHE_PREFIX}${listType}.json`, JSON.stringify(arr, null, 2));
+  console.log("Creating cache:", listType);
 }
 
 function computeChanges(oldList, newList) {
