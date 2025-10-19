@@ -50,12 +50,23 @@ async function fetchList(listType) {
 }
 
 async function sendDiscordMessage(content) {
-  await fetch(WEBHOOK, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content })
-  });
+  const color =
+  content.includes("added")
+    ? 0x57F287
+    : content.includes("removed")
+    ? 0xED4245
+    : 0x5865F2;
+
+await fetch(process.env.WEBHOOK, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    embeds: [{ description: content, color }],
+  }),
+});
 }
+  
+
 
 function diffLists(oldList, newList) {
   const changes = [];
