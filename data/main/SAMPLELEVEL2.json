@@ -8,5 +8,10 @@
     "verifier": "Xenomical",
     "verification": "https://www.youtube.com/watch?v=ISTl28wKSXc",
     "records": [
+      {
+        "dateCompleted": "2025/10/20",
+        "name": "Aque",
+        "time": "4m 15s 250ms"
+      }
     ]
 }
