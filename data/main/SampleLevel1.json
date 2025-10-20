@@ -1,19 +1,12 @@
 {
-    "name": "Hard Boiled Mode All Challenges",
-    "game": "One Night at Flumpty's: Recracked!",
-    "developers": ["Cosmic15"],
-    "version": "0.5.5 Alpha",
-    "dateMade": "2025-06-21",
-    "verifier": "Rebaur",
+    "name": "Monstergami Night (FNaC3Bb)",
+    "game": "Five Nights at Candy's 3 but Better",
+    "gameLink": "",
+    "developers": "Evil Wacko",
+    "dateVerified": "2025/10/20",
+    "length": "N/A",
+    "verifier": "Xenomical",
     "verification": "https://www.youtube.com/watch?v=ISTl28wKSXc",
     "records": [
-        {
-            "user": "Sample_Victor_1",
-            "link": "https://www.youtube.com/watch?v=MgJeijBGKHU"
-        },
-        {
-            "user": "Sample_Victor_2",
-            "link": "https://www.youtube.com/watch?v=MgJeijBGKHU"
-        }
     ]
 }
