@@ -1,7 +1,7 @@
 export default {
     props: {
         developers: {
-            type: [Array, String],
+            type: String,
             required: true,
         },
         game: {
