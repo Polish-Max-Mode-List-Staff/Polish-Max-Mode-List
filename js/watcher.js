@@ -79,7 +79,7 @@ function diffLists(oldList, newList) {
   for (const n of added) {
     const higher = newList.find(x => x.rank === n.rank - 1)?.name || "None";
     const lower = newList.find(x => x.rank === n.rank + 1)?.name || "None";
-    changes.push(`${n.name} added at #${n.rank}. Above: ${higher}. Below: ${lower}.`);
+    changes.push(`*${n.name}* added at #${n.rank}. Below: *${higher}*. Above: *${lower}*.`);
   }
 
   for (const o of removed) {
