@@ -1,24 +1,12 @@
 {
-    "name": "Sample Level 3",
-    "game": "One Night at Frogger's",
+    "name": "Monstergami Night (FNaC3Bb)",
+    "game": "Five Nights at Candy's 3 but Better",
     "gameLink": "",
-    "developers": ["Solo_Creator"],
-    "dateVerified": "2024/01/01",
+    "developers": "Evil Wacko",
+    "dateVerified": "2025/10/20",
     "length": "N/A",
-    "verifier": "Solo_Creator",
+    "verifier": "Xenomical",
     "verification": "https://www.youtube.com/watch?v=ISTl28wKSXc",
     "records": [
-        {
-            "user": "Sample_Victor_1",
-            "link": "https://www.youtube.com/watch?v=MgJeijBGKHU",
-            "time": "12m 4s 125ms",
-            "dateCompleted": "2025/01/12"
-        },
-        {
-            "user": "Sample_Victor_2",
-            "link": "https://www.youtube.com/watch?v=MgJeijBGKHU",
-            "time": "1m 2s 500ms",
-            "dateCompleted": "2025/12/12"
-        }
     ]
 }
