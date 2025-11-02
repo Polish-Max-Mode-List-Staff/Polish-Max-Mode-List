@@ -1,0 +1,395 @@
+#!/usr/bin/env python3
+"""
+pentomino_pathfinder.py
+
+Simulated-annealing pentomino placement to maximize the longest shortest-path
+between two empty cells on an X x Y board. Produces a colored PNG where:
+ - each pentomino shape has a unique color,
+ - the longest path is overlaid and marked (S/E),
+ - best result auto-saves to disk.
+
+Usage:
+    python pentomino_pathfinder.py --width 8 --height 8 --iter 200000 --outfile best.png
+
+Defaults tuned for deep search; you can reduce iterations for faster runs.
+"""
+
+import random
+import collections
+import time
+import argparse
+from math import exp
+from copy import deepcopy
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+
+# -------------------------
+# Pentomino base shapes
+# -------------------------
+PENTOMINO_BASES = {
+    'F': {(0,1),(1,0),(1,1),(1,2),(2,2)},
+    'I': {(0,0),(1,0),(2,0),(3,0),(4,0)},
+    'L': {(0,0),(0,1),(0,2),(0,3),(1,0)},
+    'N': {(0,0),(0,1),(1,1),(1,2),(1,3)},
+    'P': {(0,0),(0,1),(1,0),(1,1),(1,2)},
+    'T': {(0,0),(1,0),(2,0),(1,1),(1,2)},
+    'U': {(0,0),(0,1),(1,1),(2,0),(2,1)},
+    'V': {(0,0),(0,1),(0,2),(1,0),(2,0)},
+    'W': {(0,0),(1,0),(1,1),(2,1),(2,2)},
+    'X': {(1,0),(0,1),(1,1),(2,1),(1,2)},
+    'Y': {(0,0),(1,0),(2,0),(3,0),(2,1)},
+    'Z': {(0,0),(1,0),(1,1),(2,1),(2,2)},
+}
+
+# -------------------------
+# Transform utilities
+# -------------------------
+def all_transforms(shape):
+    """Return all unique rotations/reflections of a pentomino shape normalized to origin."""
+    forms = set()
+    for flipx in (False, True):
+        for flipy in (False, True):
+            for rot in range(4):
+                pts = []
+                for x,y in shape:
+                    nx, ny = x, y
+                    if flipx: nx = -nx
+                    if flipy: ny = -ny
+                    # rotate rot times 90 degrees
+                    for _ in range(rot):
+                        nx, ny = -ny, nx
+                    pts.append((nx, ny))
+                minx = min(p[0] for p in pts)
+                miny = min(p[1] for p in pts)
+                norm = tuple(sorted(((p[0]-minx, p[1]-miny) for p in pts)))
+                forms.add(norm)
+    return [set(f) for f in forms]
+
+def generate_placements(W, H):
+    """
+    Generate all valid placements for each pentomino on W x H board.
+    Returns dict: name -> list of frozenset of cell tuples.
+    """
+    placements = {name: [] for name in PENTOMINO_BASES}
+    for name, base in PENTOMINO_BASES.items():
+        transforms = all_transforms(base)
+        seen = set()
+        for t in transforms:
+            maxx = max(p[0] for p in t)
+            maxy = max(p[1] for p in t)
+            for ox in range(W - maxx):
+                for oy in range(H - maxy):
+                    placed = frozenset((ox + p[0], oy + p[1]) for p in t)
+                    if placed not in seen:
+                        seen.add(placed)
+                        placements[name].append(placed)
+    return placements
+
+# -------------------------
+# Graph / BFS for diameter
+# -------------------------
+def component_diameter_and_path(W, H, blocked):
+    """
+    For all empty-cell components, compute diameter and obtain one diameter path (list of coords).
+    Returns (max_dist, path) where max_dist is integer steps and path is list of (x,y).
+    If <2 empty cells, returns (0, []).
+    """
+    all_empty = [(x,y) for x in range(W) for y in range(H) if (x,y) not in blocked]
+    if len(all_empty) < 2:
+        return 0, []
+
+    visited = set()
+    best_dist = 0
+    best_path = []
+
+    for cell in all_empty:
+        if cell in visited:
+            continue
+        # BFS to get component nodes
+        q = collections.deque([cell])
+        dist = {cell: 0}
+        parent = {}
+        visited.add(cell)
+        while q:
+            u = q.popleft()
+            ux,uy = u
+            for vx,vy in ((ux+1,uy),(ux-1,uy),(ux,uy+1),(ux,uy-1)):
+                v = (vx,vy)
+                if 0 <= vx < W and 0 <= vy < H and v not in blocked and v not in dist:
+                    dist[v] = dist[u] + 1
+                    parent[v] = u
+                    visited.add(v)
+                    q.append(v)
+        # find farthest from arbitrary start
+        far = max(dist.items(), key=lambda kv: kv[1])[0]
+        # BFS from far to find diameter
+        q = collections.deque([far])
+        dist2 = {far: 0}
+        parent2 = {}
+        while q:
+            u = q.popleft()
+            ux,uy = u
+            for vx,vy in ((ux+1,uy),(ux-1,uy),(ux,uy+1),(ux,uy-1)):
+                v = (vx,vy)
+                if 0 <= vx < W and 0 <= vy < H and v not in blocked and v not in dist2:
+                    dist2[v] = dist2[u] + 1
+                    parent2[v] = u
+                    q.append(v)
+        far2, dist_val = max(dist2.items(), key=lambda kv: kv[1])
+        if dist_val > best_dist:
+            # reconstruct path from far2 back to far using parent2
+            path = [far2]
+            while path[-1] in parent2:
+                path.append(parent2[path[-1]])
+            path = list(reversed(path))  # endpoints: start..end
+            best_dist = dist_val
+            best_path = path
+
+    return best_dist, best_path
+
+# -------------------------
+# Visualization
+# -------------------------
+def plot_and_save(W, H, placements_used, blocked_cells, path, outfile, title=None):
+    """
+    placements_used: list of tuples (name, frozenset(cells))
+    blocked_cells: frozenset of all blocked cells
+    path: list of (x,y) coords (path from S..E)
+    outfile: filename to save PNG
+    """
+    # color map for 12 pentominoes
+    # use a qualitative colormap and shuffle for variety
+    cmap = plt.get_cmap('tab20')
+    base_colors = [cmap(i) for i in range(20)]
+    # assign deterministic distinct colors for pentomino names sorted
+    names = sorted(PENTOMINO_BASES.keys())
+    color_map = {names[i]: base_colors[i*2 % len(base_colors)] for i in range(len(names))}
+
+    fig_w = max(6, W * 0.6)
+    fig_h = max(6, H * 0.6)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    ax.set_xlim(0, W)
+    ax.set_ylim(0, H)
+    ax.set_xticks(np.arange(0, W+1, 1))
+    ax.set_yticks(np.arange(0, H+1, 1))
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.grid(True, linewidth=0.5, color='gray')
+
+    # draw pentomino cells
+    for name, cells in placements_used:
+        color = color_map.get(name, (0.7,0.7,0.7))
+        for (x,y) in cells:
+            rect = Rectangle((x, y), 1, 1, facecolor=color, edgecolor='k', linewidth=0.8)
+            ax.add_patch(rect)
+            # label letter in the center for readability
+            ax.text(x + 0.5, y + 0.5, name, ha='center', va='center', fontsize=10, color='black')
+
+    # draw empty cells lightly (not strictly necessary)
+    for x in range(W):
+        for y in range(H):
+            if (x,y) not in blocked_cells:
+                # tiny translucent rectangle
+                rect = Rectangle((x, y), 1, 1, facecolor=(1,1,1,0.0), edgecolor=None)
+                ax.add_patch(rect)
+
+    # overlay path: draw thick line connecting centers
+    if path:
+        xs = [p[0] + 0.5 for p in path]
+        ys = [p[1] + 0.5 for p in path]
+        ax.plot(xs, ys, linewidth=4, color='black', zorder=10)
+        # mark start / end
+        sx, sy = path[0]
+        ex, ey = path[-1]
+        ax.scatter([sx+0.5], [sy+0.5], s=180, c='lime', edgecolors='k', zorder=11)
+        ax.scatter([ex+0.5], [ey+0.5], s=180, c='red', edgecolors='k', zorder=11)
+        ax.text(sx+0.5, sy+0.5, 'S', ha='center', va='center', zorder=12, fontsize=12, fontweight='bold')
+        ax.text(ex+0.5, ey+0.5, 'E', ha='center', va='center', zorder=12, fontsize=12, fontweight='bold')
+
+    ax.set_title(title or f'Pentomino path (W={W} H={H})', fontsize=14)
+    ax.set_aspect('equal')
+    plt.tight_layout()
+    plt.savefig(outfile, dpi=200)
+    plt.close(fig)
+
+# -------------------------
+# Simulated annealing search
+# -------------------------
+def random_initial_solution(placements_dict, W, H, min_empty=2):
+    """
+    Build a random initial solution: a placement for a random subset of pentomino names.
+    Ensures non-overlap and at least min_empty empty squares remain.
+    Returns list of (name, placed_cells) and blocked_cells set.
+    """
+    names = list(PENTOMINO_BASES.keys())
+    random.shuffle(names)
+    placements_used = []
+    blocked = set()
+    for name in names:
+        options = placements_dict[name]
+        random.shuffle(options)
+        placed = False
+        for p in options:
+            if p & blocked:
+                continue
+            if len(blocked) + len(p) > W*H - min_empty:
+                continue
+            placements_used.append((name, p))
+            blocked |= p
+            placed = True
+            break
+        # we allow skipping some names; this produces a random subset without repeats
+    return placements_used, blocked
+
+def neighbor_solution(current_used, placements_dict, blocked, W, H, min_empty=2):
+    """
+    Create a neighbor by randomly:
+     - moving one placed pentomino to another valid placement, OR
+     - removing one pentomino, OR
+     - adding one pentomino not currently used.
+    Returns (new_used_list, new_blocked_set)
+    """
+    used_names = [name for name,_ in current_used]
+    unused_names = [n for n in PENTOMINO_BASES.keys() if n not in used_names]
+
+    action = random.choices(['move', 'remove', 'add'], weights=(0.5, 0.2, 0.3))[0]
+
+    new_used = current_used.copy()
+    new_blocked = set(blocked)
+
+    if action == 'move' and new_used:
+        idx = random.randrange(len(new_used))
+        name, oldp = new_used[idx]
+        # pick another placement of same name that doesn't collide (except with oldp)
+        options = placements_dict[name]
+        random.shuffle(options)
+        for p in options:
+            if p == oldp:
+                continue
+            # remove old temporarily
+            temp_blocked = new_blocked - oldp
+            if p & temp_blocked:
+                continue
+            if len(temp_blocked) + len(p) > W*H - min_empty:
+                continue
+            # accept move
+            new_used[idx] = (name, p)
+            new_blocked = temp_blocked | p
+            break
+
+    elif action == 'remove' and new_used:
+        idx = random.randrange(len(new_used))
+        name, oldp = new_used.pop(idx)
+        new_blocked = new_blocked - oldp
+
+    elif action == 'add' and unused_names:
+        name = random.choice(unused_names)
+        options = placements_dict[name]
+        random.shuffle(options)
+        for p in options:
+            if p & new_blocked:
+                continue
+            if len(new_blocked) + len(p) > W*H - min_empty:
+                continue
+            new_used.append((name, p))
+            new_blocked |= p
+            break
+
+    # fallback: if neighbor invalid, return original
+    return new_used, new_blocked
+
+def score_solution(W, H, blocked):
+    """Return the objective score (diameter length)."""
+    diam, path = component_diameter_and_path(W, H, blocked)
+    return diam, path
+
+def simulated_annealing(W, H, placements_dict, iterations=100000, time_limit=None, save_every=2000, out_prefix='best'):
+    """
+    Simulated annealing loop returns best found solution.
+    - iterations: maximum number of iterations
+    - time_limit: if set, stops after that many seconds
+    - save_every: save intermediate best PNG every N improvements
+    """
+    start_time = time.time()
+    # initial solution
+    current_used, current_blocked = random_initial_solution(placements_dict, W, H)
+    current_score, current_path = score_solution(W, H, current_blocked)
+    best_used, best_blocked, best_score, best_path = list(current_used), set(current_blocked), current_score, list(current_path)
+    print(f"Initial score: {current_score} (pieces {len(current_used)})")
+
+    T0 = 1.0
+    for it in range(1, iterations + 1):
+        if time_limit and (time.time() - start_time) > time_limit:
+            print("Time limit reached, stopping.")
+            break
+        # temperature schedule (geometric)
+        T = T0 * (0.99999 ** it)
+        # neighbor
+        new_used, new_blocked = neighbor_solution(current_used, placements_dict, current_blocked, W, H)
+        new_score, new_path = score_solution(W, H, new_blocked)
+
+        delta = new_score - current_score
+        accept = False
+        if delta >= 0:
+            accept = True
+        else:
+            # accept with probability exp(delta/T) (delta negative)
+            if random.random() < exp(delta / max(1e-9, T)):
+                accept = True
+
+        if accept:
+            current_used, current_blocked, current_score, current_path = new_used, new_blocked, new_score, new_path
+        # update best
+        if current_score > best_score:
+            best_used, best_blocked, best_score, best_path = list(current_used), set(current_blocked), current_score, list(current_path)
+            print(f"[{it}] New best score: {best_score} (pieces {len(best_used)})")
+            outname = f"{out_prefix}_W{W}xH{H}_score{best_score}_iter{it}.png"
+            plot_and_save(W, H, best_used, best_blocked, best_path, outname,
+                          title=f"Best score {best_score} (iter {it})")
+        # periodic save (if improved)
+        if it % save_every == 0:
+            print(f"iter {it} current best {best_score}, current {current_score}")
+    # final save
+    final_out = f"{out_prefix}_W{W}xH{H}_final_score{best_score}.png"
+    plot_and_save(W, H, best_used, best_blocked, best_path, final_out,
+                  title=f"Final best {best_score}")
+    return best_used, best_blocked, best_score, best_path, final_out
+
+# -------------------------
+# CLI / main
+# -------------------------
+def main():
+    parser = argparse.ArgumentParser(description="Pentomino pathfinder using simulated annealing.")
+    parser.add_argument('--width', '-W', type=int, default=8, help='Board width')
+    parser.add_argument('--height', '-H', type=int, default=8, help='Board height')
+    parser.add_argument('--iter', '-I', type=int, default=200000, help='Max iterations for annealing')
+    parser.add_argument('--time', '-T', type=float, default=None, help='Time limit in seconds (overrides iter if reached)')
+    parser.add_argument('--out', '-o', type=str, default='pentomino_best.png', help='Output filename prefix')
+    parser.add_argument('--seed', type=int, default=None, help='Random seed (default: random)')
+    parser.add_argument('--save_every', type=int, default=5000, help='Print/save progress every N iters')
+    args = parser.parse_args()
+
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+    W, H = args.width, args.height
+    print(f"Generating placements for {W}x{H} board...")
+    placements_dict = generate_placements(W, H)
+    # quick check: each pentomino must have at least one placement
+    for name, arr in placements_dict.items():
+        if not arr:
+            raise RuntimeError(f"Pentomino {name} has no placements on {W}x{H} board. Choose a larger board.")
+
+    print("Starting simulated annealing (this may take a while depending on iterations/time)...")
+    best_used, best_blocked, best_score, best_path, final_out = simulated_annealing(
+        W, H, placements_dict,
+        iterations=args.iter, time_limit=args.time, save_every=args.save_every, out_prefix=args.out)
+
+    print("Done.")
+    print(f"Best score: {best_score}")
+    print(f"Saved final image to: {final_out}")
+
+if __name__ == '__main__':
+    main()
